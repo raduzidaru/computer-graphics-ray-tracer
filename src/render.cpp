@@ -121,6 +121,22 @@ std::vector<Ray> generatePixelRaysStratified(RenderState& state, const Trackball
     // Hint; use `state.sampler.next*d()` to generate random samples in [0, 1).
     auto numSamples = static_cast<uint32_t>(std::round(std::sqrt(float(state.features.numPixelSamples))));
     std::vector<Ray> rays;
-    // ...
+    rays.reserve(numSamples);
+    uint32_t gridSize = static_cast<uint32_t>(std::sqrt(float(numSamples)));
+
+    // Pixel dimensions
+    glm::vec2 pixelSize = 2.0f / glm::vec2(screenResolution);
+    glm::vec2 pixelStart = (glm::vec2(pixel) * pixelSize) - glm::vec2(1.0f); // Bottom-left corner of pixel
+
+    for (uint32_t i = 0; i < gridSize; ++i){
+        for (uint32_t j = 0; j < gridSize; ++j) {
+            // Calculate the position in the pixel with a random X and Y offset
+            float randomOffsetX = state.sampler.next_1d(); // Random X offset in [0, 1)
+            float randomOffsetY = state.sampler.next_1d(); // Random Y offset in [0, 1)
+            glm::vec2 offset = glm::vec2(i + randomOffsetX, j + randomOffsetY) / float(gridSize); // Offset in the pixel with the random offsets
+            glm::vec2 position = pixelStart + (offset * pixelSize); // Position
+            rays.push_back(camera.generateRay(position));
+        }
+    }
     return rays;
 }
