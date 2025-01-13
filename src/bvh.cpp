@@ -165,8 +165,8 @@ bool intersectRayWithBVHImplemented(RenderState& state, const BVHInterface& bvh,
                 }
             }
         } else {
-            stack.push({ currentNode.leftChild(), level + 1 });
             stack.push({ currentNode.rightChild(), level + 1 });
+            stack.push({ currentNode.leftChild(), level + 1 });
         }
     }
 
