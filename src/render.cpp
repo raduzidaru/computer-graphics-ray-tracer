@@ -8,6 +8,7 @@
 #include "screen.h"
 #include "shading.h"
 #include <framework/trackball.h>
+#include <imgui/imgui.h>
 #ifdef NDEBUG
 #include <omp.h>
 #endif
@@ -85,7 +86,25 @@ std::vector<Ray> generatePixelRaysUniform(RenderState& state, const Trackball& c
     // Hint; use `state.sampler.next*d()` to generate random samples in [0, 1).
     auto numSamples = state.features.numPixelSamples;
     std::vector<Ray> rays;
-    // ...
+    rays.reserve(numSamples);
+    uint32_t gridSize = ceil(std::sqrt(float(numSamples)));
+
+    // Pixel dimensions
+    glm::vec2 pixelSize = 2.0f / glm::vec2(screenResolution);
+    glm::vec2 pixelStart = (glm::vec2(pixel) * pixelSize) - glm::vec2(1.0f); // Bottom-left corner of pixel
+    uint32_t rayCount = 0;
+
+    for (uint32_t i = 0; i < gridSize; ++i){
+        for (uint32_t j = 0; j < gridSize; ++j){
+            // Calculate the position in the pixel
+            glm::vec2 offset = glm::vec2(i + 0.5f, j + 0.5f) / float(gridSize); // Center
+            glm::vec2 position = pixelStart + (offset * pixelSize); // Position
+            rays.push_back(camera.generateRay(position));
+            rayCount++;
+            if (rayCount >= numSamples) return rays;
+        }
+    }
+
     return rays;
 }
 
@@ -104,8 +123,23 @@ std::vector<Ray> generatePixelRaysStratified(RenderState& state, const Trackball
 {
     // Generate numSamples * numSamples camera rays as jittered samples across the pixel.
     // Hint; use `state.sampler.next*d()` to generate random samples in [0, 1).
-    auto numSamples = static_cast<uint32_t>(std::round(std::sqrt(float(state.features.numPixelSamples))));
+    auto numSamples = state.features.numPixelSamples;
     std::vector<Ray> rays;
-    // ...
+    rays.reserve(numSamples * numSamples);
+
+    // Pixel dimensions
+    glm::vec2 pixelSize = 2.0f / glm::vec2(screenResolution);
+    glm::vec2 pixelStart = (glm::vec2(pixel) * pixelSize) - glm::vec2(1.0f); // Bottom-left corner of pixel
+
+    for (uint32_t i = 0; i < numSamples; ++i){
+        for (uint32_t j = 0; j < numSamples; ++j) {
+            // Calculate the position in the pixel with a random X and Y offset
+            float randomOffsetX = state.sampler.next_1d(); // Random X offset in [0, 1)
+            float randomOffsetY = state.sampler.next_1d(); // Random Y offset in [0, 1)
+            glm::vec2 offset = glm::vec2(i + randomOffsetX, j + randomOffsetY) / float(numSamples); // Offset in the pixel with the random offsets
+            glm::vec2 position = pixelStart + (offset * pixelSize); // Position
+            rays.push_back(camera.generateRay(position));
+        }
+    }
     return rays;
 }
