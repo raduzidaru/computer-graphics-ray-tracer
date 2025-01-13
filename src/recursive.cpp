@@ -75,7 +75,12 @@ Ray generateReflectionRay(Ray ray, HitInfo hitInfo)
 {
     // TODO: generate a mirrored ray
     //       if you use glm::reflect, you will not get points for this method!
-    return Ray {};
+    Ray result;
+    glm::vec3 intersection = ray.origin + ray.direction * ray.t;
+    glm::vec3 reflected = ray.direction - 2.0f * glm::dot(ray.direction, hitInfo.normal) * hitInfo.normal;
+    result.direction = reflected;
+    result.origin = intersection - 0.0001f * ray.direction;
+    return result;
 }
 
 // TODO: Standard feature
@@ -88,7 +93,11 @@ Ray generateReflectionRay(Ray ray, HitInfo hitInfo)
 Ray generatePassthroughRay(Ray ray, HitInfo hitInfo)
 {
     // TODO: generate a passthrough ray
-    return Ray {};
+    Ray result;
+    glm::vec3 intersection = ray.origin + ray.direction * ray.t;
+    result.origin = intersection + 0.0001f * ray.direction;
+    result.direction = ray.direction;
+    return result;
 }
 
 // TODO: standard feature
@@ -105,7 +114,44 @@ void renderRaySpecularComponent(RenderState& state, Ray ray, const HitInfo& hitI
 {
     // TODO; you should first implement generateReflectionRay()
     Ray r = generateReflectionRay(ray, hitInfo);
-    // ...
+    hitColor += renderRay(state, r, rayDepth + 1) * hitInfo.material.ks;
+    if (state.features.enableDebugDraw) {
+        Ray n;
+        n.origin = ray.origin + ray.direction * ray.t;
+        n.t = 1.0f;
+        n.direction = hitInfo.normal;
+        drawRay(n, glm::vec3(1.0f, 1.0f, 0.0f));
+
+        drawRay(r, glm::vec3(0.0f, 1.0f, 0.0f));
+
+        for (int i = 0; i < state.scene.lights.size(); i++) {
+            Ray light;
+            light.origin = ray.origin + ray.direction * ray.t;
+            if (std::holds_alternative<PointLight>(state.scene.lights[i])) {
+                light.direction = std::get<PointLight>(state.scene.lights[i]).position - light.origin;
+                light.t = glm::length(light.direction);
+                light.direction = glm::normalize(light.direction);
+                drawRay(light, glm::vec3(1.0f, 0.0f, 0.0f));
+            } else if (std::holds_alternative<SegmentLight>(state.scene.lights[i])) {
+                light.direction = std::get<SegmentLight>(state.scene.lights[i]).endpoint0 - light.origin;
+                light.t = glm::length(light.direction);
+                light.direction = glm::normalize(light.direction);
+                drawRay(light, glm::vec3(1.0f, 0.0f, 0.0f));
+
+                Ray light2;
+                light2.origin = light.origin;
+                light2.direction = std::get<SegmentLight>(state.scene.lights[i]).endpoint1 - light2.origin;
+                light2.t = glm::length(light2.direction);
+                light2.direction = glm::normalize(light2.direction);
+                drawRay(light2, glm::vec3(1.0f, 0.0f, 0.0f));
+            } else if (std::holds_alternative<ParallelogramLight>(state.scene.lights[i])) {
+                light.direction = std::get<ParallelogramLight>(state.scene.lights[i]).v0 - light.origin;
+                light.t = glm::length(light.direction);
+                light.direction = glm::normalize(light.direction);
+                drawRay(light, glm::vec3(1.0f, 0.0f, 0.0f));
+            }
+        }
+    }
 }
 
 // TODO: standard feature
@@ -122,5 +168,9 @@ void renderRayTransparentComponent(RenderState& state, Ray ray, const HitInfo& h
 {
     // TODO; you should first implement generatePassthroughRay()
     Ray r = generatePassthroughRay(ray, hitInfo);
-    // ...
+    hitColor = renderRay(state, r, rayDepth + 1) * hitInfo.material.transparency + (1.0f - hitInfo.material.transparency) * hitColor;
+    if (state.features.enableDebugDraw) {
+        drawRay(r, hitColor);
+        drawSphere(ray.origin + ray.direction * ray.t, 0.01f, hitInfo.material.transparency * glm::vec3(hitInfo.material.kd.r, hitInfo.material.kd.g, hitInfo.material.kd.b));
+    }
 }
