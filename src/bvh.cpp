@@ -116,7 +116,6 @@ int countIntersectedAABBs(const BVHInterface& bvh, const Ray& ray)
     return intersectedCount;
 }
 
-
 bool intersectRayWithBVHImplemented(RenderState& state, const BVHInterface& bvh, Ray& ray, HitInfo& hitInfo)
 {
     std::span<const BVHInterface::Node> nodes = bvh.nodes();
@@ -126,6 +125,10 @@ bool intersectRayWithBVHImplemented(RenderState& state, const BVHInterface& bvh,
     std::stack<std::pair<uint32_t, int>> stack;
     stack.push({ 0, 0 });
     std::vector<int> intersectedNodes;
+    std::vector<std::pair<glm::vec3, float>> hitGeometry;
+    size_t finalOffset;
+    size_t finalI;
+    float minDistance = FLT_MAX;
 
 
     while (!stack.empty()) {
@@ -157,16 +160,26 @@ bool intersectRayWithBVHImplemented(RenderState& state, const BVHInterface& bvh,
                 auto& prim = primitives[offset + i];
                 const auto& [v0, v1, v2] = std::tie(prim.v0, prim.v1, prim.v2);
                 if (intersectRayWithTriangle(v0.position, v1.position, v2.position, ray, hitInfo)) {
-                    is_hit = true;
-                    updateHitInfo(state, state.scene, prim, ray, hitInfo);
-                    if (state.features.enableDebugDraw) {
-                        drawTriangle(v0, v1, v2);
+                    float currentDistance = glm::length(ray.origin + ray.direction * ray.t - ray.origin);
+                    if (currentDistance < minDistance) {
+                        minDistance = currentDistance;
+                        finalOffset = offset;
+                        finalI = i;
                     }
+                    is_hit = true;
                 }
             }
         } else {
             stack.push({ currentNode.rightChild(), level + 1 });
             stack.push({ currentNode.leftChild(), level + 1 });
+        }
+    }
+    if (is_hit) {
+        const auto& prim = primitives[finalOffset + finalI];
+        const auto& [v0, v1, v2] = std::tie(prim.v0, prim.v1, prim.v2);
+        updateHitInfo(state, state.scene, prim, ray, hitInfo);
+        if (state.features.enableDebugDraw) {
+            drawTriangle(v0, v1, v2);
         }
     }
 
