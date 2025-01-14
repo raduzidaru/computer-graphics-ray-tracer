@@ -117,7 +117,7 @@ std::vector<Ray> generatePixelRaysStratified(RenderState& state, const Trackball
 {
     // Generate numSamples * numSamples camera rays as jittered samples across the pixel.
     // Hint; use `state.sampler.next*d()` to generate random samples in [0, 1).
-    auto numSamples = state.features.numPixelSamples;
+    auto numSamples = static_cast<uint32_t>(std::round(std::sqrt(float(state.features.numPixelSamples))));
     std::vector<Ray> rays;
     rays.reserve(numSamples * numSamples);
 
