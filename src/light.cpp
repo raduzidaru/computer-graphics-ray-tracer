@@ -25,8 +25,8 @@ DISABLE_WARNINGS_POP()
 void sampleSegmentLight(const float& sample, const SegmentLight& light, glm::vec3& position, glm::vec3& color)
 {
     // TODO: implement this function.
-    position = glm::vec3(0.0);
-    color = glm::vec3(0.0);
+    position = glm::mix(light.endpoint0, light.endpoint1, sample);
+    color = glm::mix(light.color0, light.color1, sample);
 }
 
 // TODO: Standard feature
@@ -41,8 +41,10 @@ void sampleSegmentLight(const float& sample, const SegmentLight& light, glm::vec
 void sampleParallelogramLight(const glm::vec2& sample, const ParallelogramLight& light, glm::vec3& position, glm::vec3& color)
 {
     // TODO: implement this function.
-    position = glm::vec3(0.0);
-    color = glm::vec3(0.0);
+    position = light.v0 + sample.x * light.edge01 + sample.y * light.edge02;
+    glm::vec3 colorEdge1 = glm::mix(light.color0, light.color1, sample.x);
+    glm::vec3 colorEdge2 = glm::mix(light.color2, light.color3, sample.x);
+    color = glm::mix(colorEdge1, colorEdge2, sample.y);
 }
 
 // TODO: Standard feature
@@ -64,7 +66,21 @@ bool visibilityOfLightSampleBinary(RenderState& state, const glm::vec3& lightPos
     } else {
         // Shadows are enabled in the renderer
         // TODO: implement this function; currently, the light simply passes through
-        return true;
+        Ray lightRay;
+        lightRay.origin = ray.origin + ray.t * ray.direction + 1e-5f * glm::normalize(hitInfo.normal);
+        lightRay.direction = glm::normalize(lightPosition - lightRay.origin);
+        lightRay.t = glm::length(lightPosition - lightRay.origin);
+
+        HitInfo info;
+        bool intersection = state.bvh.intersect(state, lightRay, info);
+        
+
+        if (!intersection) {
+            drawRay(lightRay, lightColor);
+        } else {
+            drawRay(lightRay, glm::vec3(1.0f, 0.0f, 0.0f));
+        }
+        return !intersection;
     }
 }
 
@@ -85,8 +101,30 @@ bool visibilityOfLightSampleBinary(RenderState& state, const glm::vec3& lightPos
 // This method is unit-tested, so do not change the function signature.
 glm::vec3 visibilityOfLightSampleTransparency(RenderState& state, const glm::vec3& lightPosition, const glm::vec3& lightColor, const Ray& ray, const HitInfo& hitInfo)
 {
-    // TODO: implement this function; currently, the light simply passes through
-    return lightColor;
+        glm::vec3 res = lightColor;
+
+        glm::vec3 p = ray.origin + ray.direction * ray.t;
+        Ray lightRay;
+        lightRay.direction = glm::normalize(p-lightPosition);
+        lightRay.origin = lightPosition + 0.001f * lightRay.direction;
+        lightRay.t = glm::length(lightRay.origin - p) - 0.001f;
+        if (state.features.enableDebugDraw) {
+            drawRay(lightRay, res);
+        }
+        HitInfo lightRayInfo;
+        while (state.bvh.intersect(state, lightRay, lightRayInfo)) {
+            
+            res *= lightRayInfo.material.kd * (1.0f - lightRayInfo.material.transparency);
+
+            lightRay.origin += lightRay.direction * (lightRay.t + 0.001f);
+            lightRay.t = glm::length(lightRay.origin - p) - 0.001f;
+        }
+
+        if (state.features.enableDebugDraw) {
+            drawRay(lightRay,res);
+        }
+        return res;
+    
 }
 
 // TODO: Standard feature
@@ -108,7 +146,7 @@ glm::vec3 computeContributionPointLight(RenderState& state, const PointLight& li
     glm::vec3 p = ray.origin + ray.t * ray.direction;
     glm::vec3 l = glm::normalize(light.position - p);
     glm::vec3 v = -ray.direction;
-    return computeShading(state, v, l, light.color, hitInfo);
+    return computeShading(state, v, l, light.color, hitInfo) * visibilityOfLightSample(state, light.position, light.color, ray, hitInfo);
 }
 
 // TODO: Standard feature
@@ -134,7 +172,28 @@ glm::vec3 computeContributionSegmentLight(RenderState& state, const SegmentLight
     // - sample the segment light
     // - test the sample's visibility
     // - then evaluate the phong model
-    return glm::vec3(0);
+    glm::vec3 res(0);
+
+    for (uint32_t i = 1; i <= numSamples; i++) {
+        float samplePosition = state.sampler.next_1d();
+        glm::vec3 lightPosition, lightColor;
+        sampleSegmentLight(samplePosition, light, lightPosition, lightColor);
+        
+        glm::vec3 p = ray.origin + ray.t * ray.direction;
+        glm::vec3 l = glm::normalize(lightPosition - p);
+        glm::vec3 v = -ray.direction;
+        // Check the visibility of the light sample
+        glm::vec3 col = visibilityOfLightSample(state, lightPosition, lightColor, ray, hitInfo);
+        if (glm::length(col) > 0.0f) {
+           
+
+            glm::vec3 shadingContribution = computeShading(state, v, l, lightColor, hitInfo);
+            res += shadingContribution;
+        }
+
+    }
+
+    return res / static_cast<float>(numSamples);
 }
 
 // TODO: Standard feature
@@ -161,7 +220,35 @@ glm::vec3 computeContributionParallelogramLight(RenderState& state, const Parall
     // - sample the parallellogram light
     // - test the sample's visibility
     // - then evaluate the phong model
-    return glm::vec3(0);
+    glm::vec3 res(0.0f); // Initialize the accumulated light contribution
+
+    for (uint32_t i = 0; i < numSamples; ++i) {
+        glm::vec3 lightPosition, lightColor;
+        /*float sampleU = state.sampler.next_1d();
+        float sampleV = state.sampler.next_1d();
+        glm::vec2 smp = glm::vec2(sampleU, sampleV);*/
+        sampleParallelogramLight(state.sampler.next_2d(), light, lightPosition, lightColor);
+
+        drawSphere(lightPosition, 0.005f, glm::vec3(1.0f));
+
+        
+
+        glm::vec3 col = visibilityOfLightSample(state, lightPosition, lightColor, ray, hitInfo);
+        if (glm::length(col) > 0.0f) {
+
+            glm::vec3 p = ray.origin + ray.t * ray.direction;
+            glm::vec3 l = glm::normalize(lightPosition - p);
+            glm::vec3 v = -ray.direction;
+            glm::vec3 shadingContribution = computeShading(state, v, l, lightColor, hitInfo);
+            res += shadingContribution;
+        }
+    }
+
+   
+
+    // Average the accumulated light contribution over the number of samples
+        return res / static_cast<float>(numSamples);
+
 }
 
 // This function is provided as-is. You do not have to implement it.
