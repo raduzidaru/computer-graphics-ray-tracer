@@ -1,12 +1,12 @@
 #include "render.h"
 #include "texture.h"
+#include <algorithm>
 #include <cmath>
 #include <fmt/core.h>
 #include <glm/geometric.hpp>
 #include <glm/gtx/string_cast.hpp>
 #include <shading.h>
 #include <ranges>
-#include <algorithm>
 
 // This function is provided as-is. You do not have to implement it (unless
 // you need to for some extra feature).
@@ -33,28 +33,31 @@ glm::vec3 computeShading(RenderState& state, const glm::vec3& cameraDirection, c
     // Hardcoded color gradient. Feel free to modify this
     static LinearGradient gradient = {
         .components = {
-            { 0.1f, glm::vec3(215.f / 256.f, 210.f / 256.f, 203.f / 256.f) },
-            { 0.22f, glm::vec3(250.f / 256.f, 250.f / 256.f, 240.f / 256.f) },
-            { 0.5f, glm::vec3(145.f / 256.f, 170.f / 256.f, 175.f / 256.f) },
-            { 0.78f, glm::vec3(255.f / 256.f, 250.f / 256.f, 205.f / 256.f) },
-            { 0.9f, glm::vec3(170.f / 256.f, 170.f / 256.f, 170.f / 256.f) },
+            { 0.1f, glm::vec3(1.0f, 0.0f, 0.0f) },
+            { 0.2f, glm::vec3(1.0f, 0.5f, 0.0f) },
+            { 0.4f, glm::vec3(1.0f, 1.0f, 0.0f) },
+            { 0.6f, glm::vec3(0.0f, 1.0f, 0.0f) },
+            { 0.7f, glm::vec3(0.0f, 0.0f, 1.0f) },
+            { 0.8f, glm::vec3(0.29f, 0.0f, 0.51f) },
+            { 0.9f, glm::vec3(0.56f, 0.0f, 1.0f) }
+
         }
     };
 
     if (state.features.enableShading) {
         const glm::vec3 kd = sampleMaterialKd(state, hitInfo);
         switch (state.features.shadingModel) {
-            case ShadingModel::Lambertian:
-                return computeLambertianModel(state, cameraDirection, lightDirection, lightColor, hitInfo, kd);
-            case ShadingModel::Phong:
-                return computePhongModel(state, cameraDirection, lightDirection, lightColor, hitInfo, kd);
-            case ShadingModel::BlinnPhong:
-                return computeBlinnPhongModel(state, cameraDirection, lightDirection, lightColor, hitInfo, kd);
-            case ShadingModel::LinearGradient:
-                return computeLinearGradientModel(state, cameraDirection, lightDirection, lightColor, hitInfo, gradient);
-            case ShadingModel::LinearGradientComparison:
-                return computeLinearGradientModelComparison(state, cameraDirection, lightDirection, lightColor, hitInfo, gradient);
-            };
+        case ShadingModel::Lambertian:
+            return computeLambertianModel(state, cameraDirection, lightDirection, lightColor, hitInfo, kd);
+        case ShadingModel::Phong:
+            return computePhongModel(state, cameraDirection, lightDirection, lightColor, hitInfo, kd);
+        case ShadingModel::BlinnPhong:
+            return computeBlinnPhongModel(state, cameraDirection, lightDirection, lightColor, hitInfo, kd);
+        case ShadingModel::LinearGradient:
+            return computeLinearGradientModel(state, cameraDirection, lightDirection, lightColor, hitInfo, gradient);
+        case ShadingModel::LinearGradientComparison:
+            return computeLinearGradientModelComparison(state, cameraDirection, lightDirection, lightColor, hitInfo, gradient);
+        };
     }
 
     return lightColor * sampleMaterialKd(state, hitInfo);
@@ -69,7 +72,29 @@ glm::vec3 computeShading(RenderState& state, const glm::vec3& cameraDirection, c
 // This method is unit-tested, so do not change the function signature.
 glm::vec3 LinearGradient::sample(float ti) const
 {
-    return glm::vec3(0.5f);
+    if (components.empty())
+        return { 0.f, 0.f, 0.f };
+
+    ti = glm::clamp(ti, -1.0f, 1.0f);
+    std::vector<Component> sorted = components;
+    std::sort(sorted.begin(), sorted.end(),
+        [](const Component& a, const Component& b) { return a.t < b.t; });
+
+    for (size_t i = 0; i < sorted.size() - 1; ++i) {
+        const auto& c1 = sorted[i];
+        const auto& c2 = sorted[i + 1];
+
+        if (ti >= c1.t && ti <= c2.t) {
+            float alpha = (ti - c1.t) / (c2.t - c1.t);
+            return glm::mix(c1.color, c2.color, alpha);
+        }
+    }
+
+    if (ti < sorted.front().t) {
+        return sorted.front().color;
+    } else {
+        return sorted.back().color;
+    }
 }
 
 // TODO: Standard feature
@@ -90,11 +115,24 @@ glm::vec3 LinearGradient::sample(float ti) const
 glm::vec3 computeLinearGradientModel(RenderState& state, const glm::vec3& cameraDirection, const glm::vec3& lightDirection, const glm::vec3& lightColor, const HitInfo& hitInfo, const LinearGradient& gradient)
 {
     float cos_theta = glm::dot(lightDirection, hitInfo.normal);
-    return glm::vec3(0.f);
+    cos_theta = glm::clamp(cos_theta, -1.0f, 1.0f);
+    if (cos_theta <= 1e-6f && !state.features.enableTransparency)
+        return { 0.f, 0.f, 0.f };
+
+    glm::vec3 gradientColor = gradient.sample(cos_theta);
+
+    return lightColor * gradientColor * cos_theta;
 }
 
 glm::vec3 computeLinearGradientModelComparison(RenderState& state, const glm::vec3& cameraDirection, const glm::vec3& lightDirection, const glm::vec3& lightColor, const HitInfo& hitInfo, const LinearGradient& gradient)
 {
     float cos_theta = glm::dot(lightDirection, hitInfo.normal);
-    return glm::vec3(0.f);
+    glm::vec3 kd = gradient.sample(cos_theta);
+    glm::vec3 phong = computePhongModel(state, cameraDirection, lightDirection, lightColor, hitInfo, kd);
+    glm::vec3 blinnPhong = computeBlinnPhongModel(state, cameraDirection, lightDirection, lightColor, hitInfo, kd);
+    float d = glm::length(phong - blinnPhong);
+    if (glm::length(phong) > glm::length(blinnPhong)) {
+        return glm::vec3(d * 4, 0, 0);
+    }
+    return glm::vec3(0, d * 4, d * 4);
 }
