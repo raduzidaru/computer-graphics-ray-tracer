@@ -36,7 +36,11 @@ glm::vec3 renderRay(RenderState& state, Ray ray, int rayDepth)
     // Return value: the light along the ray
     // Given an intersection, estimate the contribution of scene lights at this intersection
     glm::vec3 Lo = computeLightContribution(state, ray, hitInfo);
-
+    if(state.features.enableDebugDraw) {
+        drawSphere(glm::vec3(hitInfo.texCoord, 2.0f), 0.05f, hitInfo.material.kd);
+        auto box = AxisAlignedBox(glm::vec3(0.0f, 0.0f, 2.0f),glm::vec3(1.0f, 1.0f, 2.0f));
+        drawAABB(box, DrawMode::Filled, glm::vec3(0.5f));
+    }
     // Draw an example debug ray for the incident ray (feel free to modify this for yourself)
     drawRay(ray, glm::vec3(1.0f));
 
