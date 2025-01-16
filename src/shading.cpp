@@ -121,7 +121,7 @@ glm::vec3 computeLinearGradientModel(RenderState& state, const glm::vec3& camera
 
     glm::vec3 gradientColor = gradient.sample(cos_theta);
 
-    return lightColor * gradientColor * cos_theta;
+    return gradientColor;
 }
 
 glm::vec3 computeLinearGradientModelComparison(RenderState& state, const glm::vec3& cameraDirection, const glm::vec3& lightDirection, const glm::vec3& lightColor, const HitInfo& hitInfo, const LinearGradient& gradient)
