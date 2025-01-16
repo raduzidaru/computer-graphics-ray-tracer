@@ -42,9 +42,8 @@ void sampleParallelogramLight(const glm::vec2& sample, const ParallelogramLight&
 {
     // TODO: implement this function.
     position = light.v0 + sample.x * light.edge01 + sample.y * light.edge02;
-    glm::vec3 colorEdge1 = glm::mix(light.color0, light.color1, sample.x);
-    glm::vec3 colorEdge2 = glm::mix(light.color2, light.color3, sample.x);
-    color = glm::mix(colorEdge1, colorEdge2, sample.y);
+
+    color = light.color0 + sample.x * (light.color1 - light.color0) + sample.y * (light.color2 - light.color0);
 }
 
 // TODO: Standard feature
@@ -118,11 +117,14 @@ glm::vec3 visibilityOfLightSampleTransparency(RenderState& state, const glm::vec
 
             lightRay.origin += lightRay.direction * (lightRay.t + 0.001f);
             lightRay.t = glm::length(lightRay.origin - p) - 0.001f;
+            if (state.features.enableDebugDraw) {
+                drawRay(lightRay, res);
+            }
         }
 
-        if (state.features.enableDebugDraw) {
+       /* if (state.features.enableDebugDraw) {
             drawRay(lightRay,res);
-        }
+        }*/
         return res;
     
 }
@@ -229,7 +231,7 @@ glm::vec3 computeContributionParallelogramLight(RenderState& state, const Parall
         glm::vec2 smp = glm::vec2(sampleU, sampleV);*/
         sampleParallelogramLight(state.sampler.next_2d(), light, lightPosition, lightColor);
 
-        drawSphere(lightPosition, 0.005f, glm::vec3(1.0f));
+        drawSphere(lightPosition, 0.005f, glm::vec3(1.0f,0.0f,0.0f));
 
         
 
