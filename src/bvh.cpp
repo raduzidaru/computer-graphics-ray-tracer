@@ -129,6 +129,7 @@ bool intersectRayWithBVHImplemented(RenderState& state, const BVHInterface& bvh,
     size_t finalOffset;
     size_t finalI;
     float minDistance = FLT_MAX;
+    float count = float(countIntersectedAABBs(bvh, ray));
 
 
     while (!stack.empty()) {
@@ -145,7 +146,7 @@ bool intersectRayWithBVHImplemented(RenderState& state, const BVHInterface& bvh,
         if (state.features.enableDebugDraw) {
             glm::vec3 intersectionPoint = intersectionPointRayWithAABB(ray, currentNode.aabb);
             if (intersectionPoint.x != std::numeric_limits<float>::max()) {
-                float normalizedOrder = float(intersectedNodes.size()) / float(countIntersectedAABBs(bvh, ray));
+                float normalizedOrder = float(intersectedNodes.size()) / count;
                 glm::vec3 gradientColor = glm::mix(glm::vec3(1.0f, 1.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f), normalizedOrder);
                 drawSphere(intersectionPoint, 0.005f, gradientColor);
                 drawAABB(currentNode.aabb, DrawMode::Wireframe, gradientColor);
