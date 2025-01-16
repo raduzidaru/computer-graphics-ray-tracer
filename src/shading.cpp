@@ -33,13 +33,13 @@ glm::vec3 computeShading(RenderState& state, const glm::vec3& cameraDirection, c
     // Hardcoded color gradient. Feel free to modify this
     static LinearGradient gradient = {
         .components = {
-            { 0.1f, glm::vec3(1.0f, 0.0f, 0.0f) },
-            { 0.2f, glm::vec3(1.0f, 0.5f, 0.0f) },
-            { 0.4f, glm::vec3(1.0f, 1.0f, 0.0f) },
-            { 0.6f, glm::vec3(0.0f, 1.0f, 0.0f) },
-            { 0.7f, glm::vec3(0.0f, 0.0f, 1.0f) },
-            { 0.8f, glm::vec3(0.29f, 0.0f, 0.51f) },
-            { 0.9f, glm::vec3(0.56f, 0.0f, 1.0f) }
+            { -1.0f, glm::vec3(1.0f, 0.0f, 0.0f) },
+            { -0.7f, glm::vec3(1.0f, 0.5f, 0.0f) },
+            { -0.4f, glm::vec3(1.0f, 1.0f, 0.0f) },
+            { 0.0f, glm::vec3(0.0f, 1.0f, 0.0f) },
+            { 0.4f, glm::vec3(0.0f, 0.0f, 1.0f) },
+            { 0.7f, glm::vec3(0.29f, 0.0f, 0.51f) },
+            { 1.0f, glm::vec3(0.56f, 0.0f, 1.0f) }
 
         }
     };
@@ -116,8 +116,8 @@ glm::vec3 computeLinearGradientModel(RenderState& state, const glm::vec3& camera
 {
     float cos_theta = glm::dot(lightDirection, hitInfo.normal);
     cos_theta = glm::clamp(cos_theta, -1.0f, 1.0f);
-    if (cos_theta <= 1e-6f && !state.features.enableTransparency)
-        return { 0.f, 0.f, 0.f };
+    /*if (cos_theta <= 1e-6f && !state.features.enableTransparency)
+        return { 0.f, 0.f, 0.f };*/
 
     glm::vec3 gradientColor = gradient.sample(cos_theta);
 
@@ -131,8 +131,20 @@ glm::vec3 computeLinearGradientModelComparison(RenderState& state, const glm::ve
     glm::vec3 phong = computePhongModel(state, cameraDirection, lightDirection, lightColor, hitInfo, kd);
     glm::vec3 blinnPhong = computeBlinnPhongModel(state, cameraDirection, lightDirection, lightColor, hitInfo, kd);
     float d = glm::length(phong - blinnPhong);
-    if (glm::length(phong) > glm::length(blinnPhong)) {
-        return glm::vec3(d * 4, 0, 0);
-    }
-    return glm::vec3(0, d * 4, d * 4);
+    static LinearGradient diffgrad = {
+        .components = {
+            { -1.0f, glm::vec3(0.0f, 0.0f, 1.0f) }, // blue for having big diff
+            { 0.0f, glm::vec3(0.0f, 1.0f, 0.0f) }, // green for middle, signaling no difference between models
+            { 1.0f, glm::vec3(1.0f, 0.0f, 0.0f) } } // red for phong having much more light than blinn
+
+    };
+
+    // cap the diff
+    float colfac = d * 10;
+    if (colfac > 1)
+        colfac = 1;
+    if (colfac < -1)
+        colfac = -1;
+
+    return diffgrad.sample(colfac); // we multiply by 10 to see the diff more pronounced
 }
