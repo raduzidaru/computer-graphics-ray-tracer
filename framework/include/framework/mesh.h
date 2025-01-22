@@ -40,6 +40,13 @@ struct Mesh {
 	std::vector<glm::uvec3> triangles;
 
 	Material material;
+
+	void scale(float scaleFactor)
+        {
+            for (auto& vertex : vertices) {
+                vertex.position *= scaleFactor;
+            }
+        }
 };
 
 struct LoadMeshSettings {
