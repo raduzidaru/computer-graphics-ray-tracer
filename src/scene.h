@@ -36,6 +36,7 @@ struct Scene {
 
     // You can add your own objects (e.g. environment maps) here
     // ...
+    std::vector<Mesh> envMap;
 };
 
 // Load a prebuilt scene.
