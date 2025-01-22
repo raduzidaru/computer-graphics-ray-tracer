@@ -35,8 +35,9 @@ struct Scene {
     std::vector<SceneLight> lights;
 
     // You can add your own objects (e.g. environment maps) here
-    // ...
+    std::vector<Mesh> envMap;
 };
+
 
 // Load a prebuilt scene.
 Scene loadScenePrebuilt(SceneType type, const std::filesystem::path& dataDir);
