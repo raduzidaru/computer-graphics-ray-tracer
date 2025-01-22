@@ -40,6 +40,13 @@ struct Mesh {
 	std::vector<glm::uvec3> triangles;
 
 	Material material;
+
+	void scale(float factor)
+        {
+            for (auto& vertex : vertices) {
+                vertex.position *= factor; // Assuming position is a glm::vec3
+            }
+        }
 };
 
 struct LoadMeshSettings {
@@ -52,3 +59,4 @@ struct LoadMeshSettings {
 void meshFlipX(Mesh& mesh);
 void meshFlipY(Mesh& mesh);
 void meshFlipZ(Mesh& mesh);
+Mesh createCubeMesh(float sideLength);
