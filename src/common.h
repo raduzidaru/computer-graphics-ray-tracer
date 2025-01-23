@@ -6,6 +6,7 @@ DISABLE_WARNINGS_PUSH()
 #include <glm/vec3.hpp>
 DISABLE_WARNINGS_POP()
 #include <framework/mesh.h>
+#include <string>
 
 enum class DrawMode {
     Filled,
@@ -72,6 +73,13 @@ struct ExtraFeatures {
     // Parameters for glossy reflection
     uint32_t numGlossySamples = 1;
 
+    //BLOOM
+    int n = 2;
+    float treshold = 0.9f;
+    //C:\Users\User\Desktop\CG\data\grayscale.png
+    std::string filterImagePath = "";
+    bool linear = false;
+    bool truncate = false;
 };
 
 struct Features {
