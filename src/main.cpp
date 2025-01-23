@@ -184,6 +184,30 @@ int main(int argc, char** argv)
                 if (config.features.extra.enableBloomEffect) {
                     ImGui::Indent();
                     // Add bloom settings here, if necessary
+                    ImGui::SliderFloat("Treshold", &config.features.extra.treshold, 0.0f, 1.0f);
+                    ImGui::SliderInt("Filter size", &config.features.extra.n, 2, 24);
+
+                    static bool showFileInput = false;
+                    static char buffer[256] = "";
+
+                    if (ImGui::Button("Load Filter Image")) {
+                        showFileInput = !showFileInput;
+                    }
+
+                    if (showFileInput) {
+                        if (ImGui::InputText("File Path", buffer, sizeof(buffer))) {
+                            // User can type the path
+                        }
+                        if (ImGui::Button("Upload")) {
+                            config.features.extra.filterImagePath = std::string(buffer);
+                            showFileInput = false;
+                        }
+                    }
+
+                    ImGui::Checkbox("Linear Mapping", &config.features.extra.linear);
+                    ImGui::Checkbox("Truncate Mapping", &config.features.extra.truncate);
+
+
                     ImGui::Unindent();
                 }
                 ImGui::Checkbox("Depth of field", &config.features.extra.enableDepthOfField);

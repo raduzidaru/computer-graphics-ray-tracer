@@ -34,6 +34,190 @@ void renderImageWithMotionBlur(const Scene& scene, const BVHInterface& bvh, cons
 
 }
 
+
+// Given two number n and k, this computes the binomial coefficient.
+int binomialCoefficients(int n, int k)
+{
+    if (k == 0 || k == n)
+        return 1;
+    return binomialCoefficients(n - 1, k - 1) + binomialCoefficients(n - 1, k);
+}
+
+
+// This method generates the weights for the filter using the binomial coefficient.
+void calculateWeightsBinomial(std::vector<float>& weights, int n)
+{
+    float total = 0.0f;
+
+    for (int k = 0; k <= n; k++) {
+        weights.push_back(binomialCoefficients(n, k));
+        total += weights[k];
+    }
+
+    for (int k = 0; k <= n; k++) {
+        weights[k] = (float)(weights[k]) / (float)(total);
+    }
+}
+
+// This method generates the weights for the filter using the binomial coefficient.
+void calculateWeightsGrayscale(const Screen& screen, std::vector<float>& weights)
+{
+    weights.clear(); // Ensure the vector is empty before filling it
+
+    float totalValue = 0.0f;
+
+    // First pass: Compute the total intensity of all pixels
+    for (const auto& pixel : screen.pixels()) {
+        float intensity = pixel.r + pixel.g + pixel.b; // Sum RGB components
+        totalValue += intensity;
+    }
+
+    // Prevent division by zero
+    if (totalValue == 0.0f) {
+        totalValue = 1.0f;
+    }
+
+    // Second pass: Compute normalized weights
+    for (const auto& pixel : screen.pixels()) {
+        float intensity = pixel.r + pixel.g + pixel.b;
+        weights.push_back(intensity / totalValue);
+    }
+}
+
+
+void translateImageToScreen(const Image& image, Screen& screen, int n)
+{
+    n = std::clamp(n, 2, 20);
+
+    int regionSize = 2 * n;
+    int usedWidth = std::min(regionSize, image.width);
+    int usedHeight = std::min(regionSize, image.height);
+
+    screen = Screen(glm::ivec2(usedWidth, usedHeight));
+
+    for (int y = 0; y < usedHeight; y++) {
+        for (int x = 0; x < usedWidth; x++) {
+            // Convert (x, y) coordinates to a 1D index in the image
+            int imageIndex = y * image.width + x;
+
+            glm::vec3 pixelColor = image.get_pixel<3>(imageIndex);
+            screen.setPixel(x, y, pixelColor);
+        }
+    }
+}
+
+
+glm::vec3 binaryMapping(glm::vec3 pixelColor, float t) {
+    if (pixelColor.x > t || pixelColor.y > t || pixelColor.z > t) {
+        return glm::vec3(1.0f);
+    } else{
+        return glm::vec3(0.0f);
+    }
+}
+
+glm::vec3 linearMapping(glm::vec3 pixelColor, float t)
+{
+    if (pixelColor.x > t || pixelColor.y > t || pixelColor.z > t) {
+        return (pixelColor - t) / (1.0f - t);
+    } else {
+        return glm::vec3(0.0f);
+    }
+}
+
+glm::vec3 truncateMapping(glm::vec3 pixelColor, float t)
+{
+    if (pixelColor.x > t || pixelColor.y > t || pixelColor.z > t) {
+        return pixelColor;
+    } else {
+        return glm::vec3(0.0f);
+    }
+}
+
+
+
+void applyFilter(const Scene& scene, const Features& features, const Trackball& camera, Screen& image, std::vector<float> weights)
+{
+    Screen lights(image.resolution());
+    float t = features.extra.treshold;
+
+    if (features.extra.linear || features.extra.truncate) {
+        if (features.extra.linear) {
+            
+            //LINEAR MAPPING
+            for (int i = 0; i < image.resolution().x; i++) {
+                for (int j = 0; j < image.resolution().y; j++) {
+                    glm::vec3 pixelColor = image.pixels()[image.indexAt(i, j)];
+                    lights.setPixel(i, j, linearMapping(pixelColor, t));
+                }
+            }
+        } else {
+            //TRUNCATE MAPPING
+            for (int i = 0; i < image.resolution().x; i++) {
+                for (int j = 0; j < image.resolution().y; j++) {
+                    glm::vec3 pixelColor = image.pixels()[image.indexAt(i, j)];
+                    lights.setPixel(i, j, truncateMapping(pixelColor, t));
+                }
+            }
+        }
+    } else {
+        //BINARY MAPPING
+        for (int i = 0; i < image.resolution().x; i++) {
+            for (int j = 0; j < image.resolution().y; j++) {
+                glm::vec3 pixelColor = image.pixels()[image.indexAt(i, j)];
+                lights.setPixel(i, j, binaryMapping(pixelColor, t));
+            }
+        }
+    }
+
+    int size = weights.size();
+
+    Screen horizontal(image.resolution());
+    for (int j = 0; j < image.resolution().y; j++) {
+        for (int i = 0; i < image.resolution().x; i++) {
+            glm::vec3 blurredPixel { 0.0f };
+            for (int k = -size / 2; k <= size / 2; k++) {
+                int idx = i + k;
+                if (idx >= 0 && idx < image.resolution().x) {
+                    blurredPixel += lights.pixels()[lights.indexAt(idx, j)] * weights[k + size / 2];
+                }
+            }
+            horizontal.setPixel(i, j, blurredPixel);
+        }
+    }
+
+    Screen vertical(image.resolution());
+    for (int i = 0; i < image.resolution().x; i++) {
+        for (int j = 0; j < image.resolution().y; j++) {
+            glm::vec3 blurredPixel { 0.0f };
+            for (int k = -size / 2; k <= size / 2; k++) {
+                int idx = j + k;
+                if (idx >= 0 && idx < image.resolution().y) {
+                    blurredPixel += horizontal.pixels()[horizontal.indexAt(i, idx)] * weights[k + size / 2];
+                }
+            }
+            vertical.setPixel(i, j, blurredPixel);
+        }
+    }
+
+    // Combine the bloom effect with the original image.
+    for (int i = 0; i < image.resolution().x; i++) {
+        for (int j = 0; j < image.resolution().y; j++) {
+            glm::vec3 mask = lights.pixels()[lights.indexAt(i, j)];
+            glm::vec3 originalColor = image.pixels()[image.indexAt(i, j)];
+            glm::vec3 bloomColor = vertical.pixels()[vertical.indexAt(i, j)];
+            glm::vec3 finalColor = originalColor + bloomColor;
+            // show the bloom effect on the image
+            image.setPixel(i, j, finalColor);
+            
+            //show only the MASK
+            //image.setPixel(i, j, mask);
+            
+            // show the mask with the applied Bloomfiltrer
+            //image.setPixel(i, j, bloomColor);
+        }
+    }
+}
+
 // TODO; Extra feature
 // Given a rendered image, compute and apply a bloom post-processing effect to increase bright areas.
 // This method is not unit-tested, but we do expect to find it **exactly here**, and we'd rather
@@ -44,7 +228,27 @@ void postprocessImageWithBloom(const Scene& scene, const Features& features, con
         return;
     }
 
-    // ...
+    int n = features.extra.n;
+    if (n % 2 == 1) {
+        n++;
+    }
+    std::vector<float> weights;
+
+
+    //If a valid path is given
+    if (!features.extra.filterImagePath.empty()) {
+        Image a(features.extra.filterImagePath);
+        Screen upload(glm::ivec2(1, 1));
+        translateImageToScreen(a,upload, n);
+        calculateWeightsGrayscale(upload, weights);
+
+    } else {
+        calculateWeightsBinomial(weights, n);
+    }
+            
+    applyFilter(scene, features, camera, image, weights);
+    
+
 }
 
 
