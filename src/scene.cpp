@@ -109,12 +109,12 @@ Scene loadScenePrebuilt(SceneType type, const std::filesystem::path& dataDir)
             } });
 
         auto subMeshes = loadMesh(dataDir / "cube-textured.obj");
-
-        float scaleFactor = 5.0f;
+        scene.envMap = loadEnv(dataDir / "emoji.png");
+        float scaleFactor = 30.0f;
         for (auto& mesh : subMeshes) {
             mesh.scale(scaleFactor);
         }
-        std::move(std::begin(subMeshes), std::end(subMeshes), std::back_inserter(scene.envMap));
+        std::move(std::begin(subMeshes), std::end(subMeshes), std::back_inserter(scene.envMapCube));
 
         // Lighting
         scene.lights.emplace_back(PointLight { glm::vec3(-1.0f, 15.5f, -1.0f), glm::vec3(1.0f) });
@@ -133,4 +133,9 @@ Scene loadSceneFromFile(const std::filesystem::path& path, const std::vector<std
     std::move(std::begin(subMeshes), std::end(subMeshes), std::back_inserter(scene.meshes));
 
     return scene;
+}
+
+std::shared_ptr<Image> loadEnv(std::filesystem::path path)
+{
+    return std::make_shared<Image>(path);
 }
