@@ -310,8 +310,9 @@ bool isPointInTriangle(const glm::vec3& point, const glm::vec3& v0, const glm::v
     return true;
 }
 
-glm::vec3 getTextureColor(const Mesh& envMapMesh, const Ray& ray)
+glm::vec3 getTextureColor(const RenderState& state, const Ray& ray)
 {
+    Mesh envMapMesh = state.scene.envMapCube[0];
     float closestT = std::numeric_limits<float>::max();
     glm::vec2 closestTexCoord;
     bool hit = false;
@@ -339,9 +340,12 @@ glm::vec3 getTextureColor(const Mesh& envMapMesh, const Ray& ray)
         closestTexCoord = barycentricCoords.x * tex0 + barycentricCoords.y * tex1 + barycentricCoords.z * tex2;
     }
 
-    if (hit && envMapMesh.material.kdTexture != nullptr) {
+    if (hit && state.scene.envMap != nullptr) {
         closestTexCoord = glm::clamp(closestTexCoord, glm::vec2(0.0f), glm::vec2(1.0f));
-        return sampleTextureNearest(*envMapMesh.material.kdTexture, closestTexCoord);
+        if (state.features.enableBilinearTextureFiltering) {
+            return sampleTextureBilinear(*state.scene.envMap, closestTexCoord);
+        }
+        return sampleTextureNearest(*state.scene.envMap, closestTexCoord);
     }
 
     return glm::vec3(0.0f);
@@ -357,10 +361,8 @@ glm::vec3 getTextureColor(const Mesh& envMapMesh, const Ray& ray)
 // not go on a hunting expedition for your implementation, so please keep it here!
 glm::vec3 sampleEnvironmentMap(RenderState& state, Ray ray)
 {
-    if (state.features.extra.enableEnvironmentMap) {
-        if (!state.scene.envMap.empty()) {
-            return getTextureColor(state.scene.envMap[0], ray);
-        }
+    if (state.features.extra.enableEnvironmentMap && state.scene.envMap != nullptr) {
+        return getTextureColor(state, ray);
     } else {
         return glm::vec3(0.f);
     }
